@@ -81,7 +81,8 @@ jobs:
 
       - name: package for suyu/eden
         run: |
-          ./package_driver.sh \
+          chmod +x package_driver.sh build_a735.sh
+          bash package_driver.sh \
             --so out/libvulkan_freedreno.so \
             --version "${MESA_VERSION}-a735" \
             --out "out/mesa-turnip-a735-suyu-eden-${MESA_VERSION}.zip"
