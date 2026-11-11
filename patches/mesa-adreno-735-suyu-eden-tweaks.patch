@@ -1,0 +1,41 @@
+diff --git a/src/freedreno/common/freedreno_devices.py b/src/freedreno/common/freedreno_devices.py
+--- a/src/freedreno/common/freedreno_devices.py
++++ b/src/freedreno/common/freedreno_devices.py
+@@ -1,3 +1,20 @@
+ # Copyright (C) 2021 Google, Inc.
+ # SPDX-License-Identifier: MIT
+ #
++# ---------------------------------------------------------------------------
++# Adreno 735 / Snapdragon 8s Gen 3 (SM8635) — Suyu / Eden notes
++# ---------------------------------------------------------------------------
++# Mesa 24.2+ already registers chip_id 0x43050a as `a735` in the table
++# below. Mesa 26.3.0 inherits that entry and adds the same A7xx Gen4
++# tuning (gmem layout, shaderISDB, LRZ bypass on alpha-test, etc.) that
++# A740/A750 use, because A735 shares the same ISA and rasteriser as the
++# rest of the A7xx family.
++#
++# If a future silicon revision of A735 ships with a chip_id not yet in
++# the table (e.g. 0x43050b), the driver will fall back to the generic
++# "unknown a7xx" path. To force it back to the a735 entry, add:
++#
++#     (0x43050b, A7XX_GEN4, 1 * 1024 * 1024, None, "a735"),
++#
++# to GPU_INFO_TABLE below. This is the ONLY manual edit you should ever
++# need to make for an unreleased A735 revision.
++# ---------------------------------------------------------------------------
+diff --git a/docs/drivers/freedreno.rst b/docs/drivers/freedreno.rst
+--- a/docs/drivers/freedreno.rst
++++ b/docs/drivers/freedreno.rst
+@@ -0,0 +1,12 @@
++Adreno 735 (Snapdragon 8s Gen 3 / SM8635)
++=========================================
++
++The A735 is a member of the Adreno 7xx family (A7xx Gen4). Turnip
++enables the full A7xx feature set on this GPU, including:
++
++* VK_EXT_transform_feedback (required by Nintendo Switch emulation)
++* VK_EXT_provoking_vertex (required by Nintendo Switch emulation)
++* VK_EXT_extended_dynamic_state, _state2, _state3
++* VK_EXT_graphics_pipeline_library (fast PSO compiles in Suyu/Eden)
++* VK_KHR_fragment_shading_rate
++* 1 MiB GMEM with conservative binning

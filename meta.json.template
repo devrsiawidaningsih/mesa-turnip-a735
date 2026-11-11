@@ -1,0 +1,11 @@
+{
+  "name": "Mesa Turnip A735 (Suyu/Eden)",
+  "driverVersion": "26.3.0-a735",
+  "libraryName": "libvulkan_freedreno.so",
+  "author": "mesa-turnip-a735-suyu-eden build scripts",
+  "description": "Mesa Turnip (freedreno Vulkan) 26.3.0 built for Adreno 735 on Snapdragon 8s Gen 3 (SM8635). All Vulkan extensions enabled for Android. KGSL backend. Use with Suyu or Eden Nintendo Switch emulators via the 'Load custom driver' menu.",
+  "supportedGpus": [
+    { "vendor": "qualcomm", "model": "Adreno 735", "deviceId": "0x43050a" }
+  ],
+  "minApiLevel": 26
+}

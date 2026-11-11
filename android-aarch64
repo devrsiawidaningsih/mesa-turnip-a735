@@ -1,0 +1,47 @@
+# Meson cross-file for building Mesa Turnip (freedreno Vulkan) for
+# Android aarch64. Used by build_a735.sh and the GitHub Actions
+# workflow .github/workflows/build-a735-package.yml
+#
+# Target hardware:
+#   SoC      : Qualcomm Snapdragon 8s Gen 3 (SM8635)
+#   GPU      : Adreno 735  (chip_id 0x43050a, Mesa device name "a735")
+#   Android  : 8.0 (API 26) minimum — required for kgsl userspace
+#              sync_merge / sync_file_info, which Turnip uses via
+#              the android_stub shims.
+#
+# Notes:
+#   * NDKDIR is substituted at build time by build_a735.sh or by the
+#     sed step in the GitHub workflow. Set it to your $ANDROID_NDK_HOME.
+#   * android26 = platform-sdk-version 26. Bumping to 30/33/34 is safe
+#     if your device runs Android 11+, but matching the lowest SDK
+#     you intend to run on keeps the .so loadable on older firmware.
+#   * ccache is optional but cuts rebuild time by ~70% once warm.
+
+[binaries]
+ar       = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+c        = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
+cpp      = ['ccache',
+            'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++',
+            '-fno-exceptions',
+            '-fno-unwind-tables',
+            '-fno-asynchronous-unwind-tables',
+            '-static-libstdc++',
+            '-Wno-c++11-narrowing']
+c_ld     = 'lld'
+cpp_ld   = 'lld'
+strip    = ['NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip', '-s']
+pkg-config = ['env', 'PKG_CONFIG_LIBDIR=NDKDIR/pkg-config', '/usr/bin/pkg-config']
+
+[host_machine]
+system    = 'android'
+cpu_family = 'aarch64'
+cpu       = 'armv8'
+endian    = 'little'
+
+# ---------------------------------------------------------------------------
+# Optional perf tuning for A735 / SM8635. These are env vars, not meson
+# options, but documenting them here keeps everything in one place.
+#   TU_GMEM_SIZE=1048576     # 1 MiB GMEM (A735 default, no override needed)
+#   TU_DEBUG=                # leave empty in production builds
+#   MESA_VK_WSI_PRESENT_MODE=immediate  # reduces present latency in Suyu/Eden
+# ---------------------------------------------------------------------------
