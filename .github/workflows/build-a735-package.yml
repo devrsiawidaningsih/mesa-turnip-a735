@@ -1,0 +1,105 @@
+name: build-a735-package
+
+# Builds Mesa Turnip Vulkan driver for Adreno 735 / Snapdragon 8s Gen 3,
+# then packages it into the zip format that Suyu and Eden Nintendo Switch
+# emulators load via their "custom Vulkan driver" menu.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mesa_version:
+        description: "Mesa version (e.g. 26.3.0, or 'edge' for git HEAD)"
+        required: true
+        default: "26.3.0"
+  push:
+    paths:
+      - 'patches/**'
+      - 'android-aarch64'
+      - '.github/workflows/build-a735-package.yml'
+  schedule:
+    - cron: "30 3 * * *"
+
+env:
+  MESA_VERSION: ${{ github.event.inputs.mesa_version || '26.3.0' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: ndk-fix-debug
+        run: sed -i -e '/^  -g$/d' $ANDROID_NDK_LATEST_HOME/build/cmake/android-legacy.toolchain.cmake
+
+      - name: apt
+        run: sudo apt-get install -y meson patchelf python3-pip flex bison python3-mako python-is-python3 glslang-tools ccache zip
+
+      - name: pip
+        run: pip3 install -U meson ninja --user
+
+      - name: fetch mesa
+        run: |
+          mkdir -p out
+          if [[ "${MESA_VERSION}" == "edge" ]]; then
+            git clone --depth 1 --recursive https://gitlab.freedesktop.org/mesa/mesa.git out/mesa-edge
+          else
+            wget -q "https://archive.mesa3d.org/mesa-${MESA_VERSION}.tar.xz" -O out/mesa.tar.xz
+            tar -xf out/mesa.tar.xz -C out
+            rm out/mesa.tar.xz
+          fi
+
+      - name: apply patches
+        run: |
+          cd "out/mesa-${MESA_VERSION}"
+          sed -e "s|NDKDIR|$ANDROID_NDK_LATEST_HOME|g" < ../../android-aarch64 > android-aarch64
+          patch -p1 --forward -i ../../patches/mesa-implement-android_stub.patch
+          patch -p1 --forward -i ../../patches/mesa-android-include-all-vulkan-extension.patch
+          patch -p1 --forward -i ../../patches/mesa-adreno-735-suyu-eden-tweaks.patch || \
+            echo "a735 tweak patch skipped (already applied or context drift)"
+
+      - name: meson setup
+        run: |
+          cd "out/mesa-${MESA_VERSION}"
+          meson setup build-android --cross-file ./android-aarch64 \
+              -Dbuildtype=release \
+              -Dplatforms=android \
+              -Dplatform-sdk-version=26 \
+              -Dandroid-stub=true \
+              -Dvideo-codecs= \
+              -Dgallium-drivers= \
+              -Dglx=disabled \
+              -Degl=disabled \
+              -Dvulkan-drivers=freedreno \
+              -Dfreedreno-kmds=kgsl \
+              -Db_lto=true -Dallow-broken-lto=true -Dstrip=true
+
+      - name: ninja
+        run: |
+          cd "out/mesa-${MESA_VERSION}"
+          ninja -C build-android
+          cp build-android/src/freedreno/vulkan/libvulkan_freedreno.so ../../out/libvulkan_freedreno.so
+
+      - name: package for suyu/eden
+        run: |
+          ./package_driver.sh \
+            --so out/libvulkan_freedreno.so \
+            --version "${MESA_VERSION}-a735" \
+            --out "out/mesa-turnip-a735-suyu-eden-${MESA_VERSION}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mesa-turnip-a735-suyu-eden-${{ env.MESA_VERSION }}
+          path: |
+            out/mesa-turnip-a735-suyu-eden-${{ env.MESA_VERSION }}.zip
+            out/libvulkan_freedreno.so
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: a735-${{ env.MESA_VERSION }}-${{ github.run_number }}
+          name: "Mesa Turnip A735 (Suyu/Eden) ${{ env.MESA_VERSION }} #${{ github.run_number }}"
+          files: out/mesa-turnip-a735-suyu-eden-${{ env.MESA_VERSION }}.zip
